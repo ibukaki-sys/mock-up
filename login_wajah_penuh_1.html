@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistem Pengesahan Wajah — SMK Haji Abdul Rahman Limbong</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.5.0/dist/tabler-icons.min.css">
+<style>
+  :root{ --teal:#1de9b6; --teal-bright:#5fffd8; --teal-dim:#5fd0c5; --teal-dark:#2a6f78;
+    --red:#ff3b3b; --red-bright:#ff5b5b; --amber:#ffd24a; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; background:#05070f; height:100%; width:100%; overflow:hidden; }
+  body{ font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace; height:100vh; width:100vw; }
+  #root{ position:relative; height:100vh; width:100vw; overflow:hidden; }
+  canvas#grid-bg{ position:absolute; inset:0; width:100%; height:100%; z-index:0; }
+  #alarm-flash{ position:absolute; inset:0; background:#ff2b2b; opacity:0; pointer-events:none; mix-blend-mode:screen; z-index:50; }
+  .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  button,select{ font-family:inherit; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  @keyframes blink{ 50%{ opacity:0.25; } }
+  @keyframes pulse{ 50%{ opacity:0.4; } }
+  #rec-dot{ animation:blink 1s infinite; }
+  #cd-num{ animation:pulse 1s infinite; }
+  #cam-video,#cam-video-2{ width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
+
+  /* ===== TATA LETAK SKRIN PENUH ===== */
+  #topbar{ position:relative; z-index:5; display:flex; align-items:center; justify-content:space-between;
+    padding:18px 36px; border-bottom:1px solid rgba(29,233,182,0.18); }
+  #stage{ position:relative; z-index:5; display:flex; gap:40px; align-items:center; justify-content:center;
+    height:calc(100vh - 76px); padding:30px 48px; }
+  #panel-cam{ flex:0 0 auto; }
+  #panel-ctrl{ flex:0 0 360px; max-width:360px; }
+
+  #reticle{ position:relative; width:min(72vh,720px); height:min(72vh,720px); }
+  .scan-btn-lg{ width:100%; height:60px; border-radius:6px; font-size:16px; font-weight:500; letter-spacing:4px;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; gap:12px; }
+
+  @media (max-width:900px){
+    #stage{ flex-direction:column; gap:20px; height:auto; min-height:calc(100vh - 76px); padding:20px; }
+    #panel-ctrl{ flex:1 1 auto; width:100%; max-width:560px; }
+    #reticle{ width:min(86vw,520px); height:min(86vw,520px); }
+  }
+</style>
+</head>
+<body>
+<div id="root">
+  <h2 class="sr-only">Sistem pengesahan wajah skrin penuh dengan kamera sebenar: cubaan pertama gagal dengan penggera dan pemasa pemusnahan 5 saat, cubaan kedua berjaya lalu papar sambutan dengan suara. Mockup offline tanpa pengecaman sebenar.</h2>
+  <canvas id="grid-bg"></canvas>
+  <div id="alarm-flash"></div>
+
+  <!-- BAR ATAS -->
+  <div id="topbar">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <i class="ti ti-shield-lock" style="font-size:28px; color:#5fffd8;" aria-hidden="true"></i>
+      <div>
+        <div style="color:#eafff9; font-size:15px; letter-spacing:2px; font-weight:500;">SISTEM PENGESAHAN BIOMETRIK</div>
+        <div style="color:#3fae9f; font-size:11px; letter-spacing:2px;">SMK HAJI ABDUL RAHMAN LIMBONG</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:24px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span id="rec-dot" style="width:10px; height:10px; border-radius:50%; background:#ff4040; box-shadow:0 0 8px #ff4040;"></span>
+        <span style="color:#5fd0c5; font-size:12px; letter-spacing:2px;">LANGSUNG</span>
+      </div>
+      <span id="clock" style="color:#5fd0c5; font-size:13px; letter-spacing:1px;">00:00:00</span>
+    </div>
+  </div>
+
+  <!-- PENTAS UTAMA -->
+  <div id="stage">
+
+    <!-- ===== SKRIN LOGIN: panel kamera ===== -->
+    <div id="panel-cam">
+      <div id="reticle">
+        <svg viewBox="0 0 600 600" style="position:absolute; inset:0; width:100%; height:100%; z-index:3;">
+          <circle id="ring-out" cx="300" cy="300" r="286" fill="none" stroke="#1de9b6" stroke-width="1.5" opacity="0.35" stroke-dasharray="6 10"/>
+          <circle id="ring-mid" cx="300" cy="300" r="240" fill="none" stroke="#1de9b6" stroke-width="2" opacity="0.55" stroke-dasharray="120 36 60 36"/>
+          <circle cx="300" cy="300" r="195" fill="none" stroke="#1de9b6" stroke-width="0.8" opacity="0.25"/>
+          <g id="cross" stroke="#1de9b6" stroke-width="2.5" opacity="0.8" stroke-linecap="round">
+            <path d="M300 36 L300 72"/><path d="M300 528 L300 564"/><path d="M36 300 L72 300"/><path d="M528 300 L564 300"/>
+          </g>
+          <g id="tick-ring" stroke="#1de9b6" stroke-width="1.2" opacity="0.4"></g>
+        </svg>
+        <div id="face-zone" style="position:absolute; inset:60px; border-radius:14px; overflow:hidden; background:radial-gradient(circle at 50% 40%, #0d2230, #060b14);">
+          <video id="cam-video" autoplay playsinline muted></video>
+          <svg id="placeholder-face" viewBox="0 0 416 416" style="position:absolute; inset:0; width:100%; height:100%;">
+            <ellipse cx="208" cy="184" rx="92" ry="116" fill="#16414a" opacity="0.7"/>
+            <ellipse cx="208" cy="370" rx="140" ry="104" fill="#16414a" opacity="0.55"/>
+            <circle cx="172" cy="168" r="10" fill="#2a6f78"/><circle cx="244" cy="168" r="10" fill="#2a6f78"/>
+            <path d="M180 240 Q208 260 236 240" stroke="#2a6f78" stroke-width="6" fill="none" stroke-linecap="round"/>
+          </svg>
+          <svg id="mesh" viewBox="0 0 416 416" style="position:absolute; inset:0; width:100%; height:100%; opacity:0;">
+            <g id="mesh-lines" stroke="#5fffd8" stroke-width="1.2" fill="none" opacity="0.9">
+              <path d="M104 160 L208 116 L312 160 L300 280 L208 356 L116 280 Z"/>
+              <path d="M104 160 L208 200 L312 160 M208 116 L208 200 M116 280 L208 200 L300 280 M208 200 L208 356"/>
+              <path d="M156 160 L172 168 L188 160 M228 160 L244 168 L260 160"/>
+              <path d="M180 240 L208 256 L236 240 L208 276 Z"/>
+              <path d="M140 190 L208 160 L276 190 M140 190 L156 260 M276 190 L260 260"/>
+            </g>
+            <g id="mesh-dots" fill="#5fffd8">
+              <circle cx="172" cy="168" r="5"/><circle cx="244" cy="168" r="5"/><circle cx="208" cy="256" r="5"/>
+              <circle cx="208" cy="116" r="5"/><circle cx="116" cy="280" r="5"/><circle cx="300" cy="280" r="5"/>
+            </g>
+          </svg>
+          <div id="scanline" style="position:absolute; left:0; right:0; height:3px; background:#5fffd8; box-shadow:0 0 24px 6px rgba(95,255,216,0.9); top:0; opacity:0;"></div>
+          <div id="denied-x" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; opacity:0;">
+            <i class="ti ti-ban" style="font-size:180px; color:#ff3b3b;" aria-hidden="true"></i>
+          </div>
+          <div id="lock-icon" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; opacity:0;">
+            <i class="ti ti-lock-cancel" style="font-size:160px; color:#ff3b3b;" aria-hidden="true"></i>
+          </div>
+        </div>
+        <svg viewBox="0 0 600 600" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:3;">
+          <g id="bracket" stroke="#1de9b6" stroke-width="3.5" fill="none" stroke-linecap="round">
+            <path d="M110 158 L110 110 L158 110"/><path d="M442 110 L490 110 L490 158"/>
+            <path d="M490 442 L490 490 L442 490"/><path d="M158 490 L110 490 L110 442"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ===== SKRIN LOGIN: panel kawalan ===== -->
+    <div id="panel-ctrl">
+      <div id="destruct-bar" style="width:100%; height:0; overflow:hidden; opacity:0; transition:opacity 0.3s; background:rgba(255,43,43,0.12); border:1px solid #ff2b2b; border-radius:6px; text-align:center;">
+        <div style="color:var(--red-bright); font-size:13px; letter-spacing:3px; padding-top:12px;">&#9888; PEMUSNAHAN DIRI &#9888;</div>
+        <div id="cd-num" style="color:var(--red); font-size:72px; font-weight:500; line-height:1.05; letter-spacing:2px;">5</div>
+        <div style="color:#ff7b7b; font-size:11px; letter-spacing:2px; padding-bottom:12px;">SAH IDENTITI SEBELUM SISTEM DIKUNCI</div>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+        <span style="color:#3fae9f; font-size:12px; letter-spacing:2px;">PROTOKOL AKSES</span>
+        <span id="attempt" style="color:#5fd0c5; font-size:12px; letter-spacing:1px;">CUBAAN 0/2</span>
+      </div>
+
+      <div id="cam-hint" style="font-size:11px; color:#3fae9f; letter-spacing:1px; margin-bottom:20px; min-height:14px;">MEMULAKAN KAMERA...</div>
+
+      <div id="readout" style="width:100%; font-size:13px; color:#3fae9f; line-height:2.4; letter-spacing:0.5px; border-top:1px solid rgba(29,233,182,0.2); border-bottom:1px solid rgba(29,233,182,0.2); padding:14px 6px; margin-bottom:24px;">
+        <div style="display:flex; justify-content:space-between;"><span>STATUS</span><span id="r-status" style="color:#5fffd8;">SEDIA</span></div>
+        <div style="display:flex; justify-content:space-between;"><span>PADANAN</span><span id="r-match" style="color:#5fffd8;">&mdash; &mdash;</span></div>
+        <div style="display:flex; justify-content:space-between;"><span>SUBJEK</span><span id="r-subj" style="color:#5fffd8;">TIADA</span></div>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <div style="color:#3fae9f; font-size:11px; letter-spacing:2px; margin-bottom:8px;">SUARA SAMBUTAN</div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <i class="ti ti-volume" style="font-size:20px; color:#3fae9f;" aria-hidden="true"></i>
+          <select id="voice-select" style="flex:1; height:40px; background:#0a1420; color:#5fd0c5; border:1px solid rgba(29,233,182,0.3); border-radius:5px; font-family:inherit; font-size:11px; letter-spacing:0.5px; padding:0 8px;"></select>
+          <button id="voice-test" style="height:40px; padding:0 16px; background:transparent; color:#1de9b6; border:1px solid #1de9b6; border-radius:5px; font-size:11px; letter-spacing:1px; cursor:pointer;">UJI</button>
+        </div>
+        <div id="voice-note" style="color:#2a6f78; font-size:10px; letter-spacing:0.5px; margin-top:6px;"></div>
+      </div>
+
+      <button id="scan-btn" class="scan-btn-lg" style="background:transparent; color:#1de9b6; border:1px solid #1de9b6;">
+        <i id="btn-icon" class="ti ti-scan" style="font-size:22px;" aria-hidden="true"></i>
+        <span id="btn-label">MULA IMBASAN</span>
+      </button>
+      <p style="color:#2a5a54; font-size:10px; letter-spacing:1px; margin:16px 0 0; text-align:center;">MOCKUP OFFLINE · TIADA PENGECAMAN SEBENAR</p>
+    </div>
+
+    <!-- ===== SKRIN SAMBUTAN ===== -->
+    <div id="screen-welcome" style="position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; z-index:8;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:32px;">
+        <i class="ti ti-shield-check" style="font-size:20px; color:#5fffd8;" aria-hidden="true"></i>
+        <span style="color:#5fffd8; font-size:14px; letter-spacing:4px;">AKSES DIBENARKAN · 99% PADANAN</span>
+      </div>
+      <div id="avatar" style="position:relative; width:220px; height:220px; margin-bottom:32px; opacity:0; transform:scale(0.8); transition:opacity 0.6s, transform 0.6s;">
+        <svg viewBox="0 0 220 220" style="position:absolute; inset:0; width:100%; height:100%; z-index:2;">
+          <circle cx="110" cy="110" r="104" fill="none" stroke="#1de9b6" stroke-width="2" opacity="0.4" stroke-dasharray="4 7"/>
+          <circle id="prog" cx="110" cy="110" r="96" fill="none" stroke="#5fffd8" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="603" stroke-dashoffset="603" transform="rotate(-90 110 110)"/>
+        </svg>
+        <div id="avatar-inner" style="position:absolute; inset:28px; border-radius:50%; overflow:hidden; background:radial-gradient(circle at 50% 38%, #12323a, #060b14); display:flex; align-items:center; justify-content:center;">
+          <video id="cam-video-2" autoplay playsinline muted style="display:none;"></video>
+          <i id="avatar-icon" class="ti ti-user-check" style="font-size:82px; color:#5fffd8; position:absolute;" aria-hidden="true"></i>
+        </div>
+      </div>
+      <div id="welcome-text" style="text-align:center; opacity:0; transform:translateY(14px); transition:opacity 0.6s 0.3s, transform 0.6s 0.3s;">
+        <p style="color:#3fae9f; font-size:15px; letter-spacing:6px; margin:0 0 12px;">SELAMAT DATANG</p>
+        <p style="color:#eafff9; font-size:38px; font-weight:500; letter-spacing:1px; margin:0; line-height:1.25;">Encik Abdul Manaf bin Mamat</p>
+        <div style="width:90px; height:1px; background:#1de9b6; margin:22px auto; opacity:0.5;"></div>
+        <p style="color:#5fd0c5; font-size:14px; letter-spacing:3px; margin:0;">SMK HAJI ABDUL RAHMAN LIMBONG</p>
+        <p id="w-time" style="color:#2a6f78; font-size:12px; letter-spacing:1px; margin:14px 0 0;"></p>
+      </div>
+      <button id="logout-btn" style="margin-top:38px; width:300px; height:52px; background:transparent; color:#5fd0c5; border:1px solid #2a6f78; border-radius:6px; font-size:13px; font-weight:500; letter-spacing:3px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:12px; opacity:0; transition:opacity 0.6s 0.8s;">
+        <i class="ti ti-logout" style="font-size:20px;" aria-hidden="true"></i>
+        <span>LOG KELUAR</span>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script>
+(function(){
+  const tickRing=document.getElementById('tick-ring'); let ticks='';
+  for(let i=0;i<60;i++){ const a=i*6*Math.PI/180,r1=262,r2=i%5===0?244:254;
+    ticks+='<line x1="'+(300+r1*Math.cos(a))+'" y1="'+(300+r1*Math.sin(a))+'" x2="'+(300+r2*Math.cos(a))+'" y2="'+(300+r2*Math.sin(a))+'"/>'; }
+  tickRing.innerHTML=ticks;
+
+  const gc=document.getElementById('grid-bg'), gx=gc.getContext('2d'); let W,H;
+  function rs(){ W=gc.width=gc.offsetWidth; H=gc.height=gc.offsetHeight; } rs(); window.addEventListener('resize', rs);
+  let off=0, gridColor='rgba(29,233,182,0.10)';
+  function grid(){ gx.clearRect(0,0,W,H); gx.strokeStyle=gridColor; gx.lineWidth=1; const sp=44,o=off%sp;
+    for(let x=-o;x<W;x+=sp){ gx.beginPath(); gx.moveTo(x,0); gx.lineTo(x,H); gx.stroke(); }
+    for(let y=-o;y<H;y+=sp){ gx.beginPath(); gx.moveTo(0,y); gx.lineTo(W,y); gx.stroke(); }
+    off+=0.18; requestAnimationFrame(grid); }
+  grid();
+
+  const ringOut=document.getElementById('ring-out'), ringMid=document.getElementById('ring-mid'); let rot=0;
+  function spin(){ rot+=0.3; ringOut.style.transform='rotate('+rot+'deg)'; ringOut.style.transformOrigin='300px 300px';
+    ringMid.style.transform='rotate('+(-rot*0.6)+'deg)'; ringMid.style.transformOrigin='300px 300px'; requestAnimationFrame(spin); }
+  spin();
+
+  function clk(){ document.getElementById('clock').textContent=new Date().toTimeString().slice(0,8); }
+  clk(); setInterval(clk,1000);
+
+  // ---- KAMERA SEBENAR ----
+  const camVideo=document.getElementById('cam-video'), camVideo2=document.getElementById('cam-video-2');
+  const placeholderFace=document.getElementById('placeholder-face'), camHint=document.getElementById('cam-hint');
+  const avatarIcon=document.getElementById('avatar-icon');
+  let camStream=null;
+  async function startCamera(){
+    try{
+      camStream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:640, height:640 }, audio:false });
+      camVideo.srcObject=camStream; camVideo2.srcObject=camStream;
+      placeholderFace.style.display='none';
+      camHint.textContent='KAMERA AKTIF · SEDIA MENGIMBAS'; camHint.style.color='#3fae9f';
+    }catch(e){
+      camHint.textContent='KAMERA TIDAK TERSEDIA · GUNA MOD GRAFIK'; camHint.style.color='#ffd24a';
+    }
+  }
+  startCamera();
+
+  // ---- AUDIO ----
+  let actx;
+  function ac(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); return actx; }
+  function beep(f,dur,type,vol,when){ try{ const a=ac(),t=a.currentTime+(when||0),o=a.createOscillator(),g=a.createGain();
+    o.type=type||'sine'; o.frequency.value=f; o.connect(g); g.connect(a.destination);
+    g.gain.setValueAtTime(vol||0.14,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur); o.start(t); o.stop(t+dur);}catch(e){} }
+  function sweep(f1,f2,dur,vol,type){ try{ const a=ac(),t=a.currentTime,o=a.createOscillator(),g=a.createGain();
+    o.type=type||'sawtooth'; o.frequency.setValueAtTime(f1,t); o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+    o.connect(g); g.connect(a.destination); g.gain.setValueAtTime(vol||0.09,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.start(t); o.stop(t+dur);}catch(e){} }
+  function drone(dur){ try{ const a=ac(),t=a.currentTime,o=a.createOscillator(),g=a.createGain();
+    o.type='sawtooth'; o.frequency.setValueAtTime(55,t); o.connect(g); g.connect(a.destination);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.06,t+0.3); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.start(t); o.stop(t+dur);}catch(e){} }
+  function chord(){ [392,523,659,784,1046].forEach((f,i)=>beep(f,0.7,'triangle',0.15,i*0.09)); }
+  function tickBeep(){ beep(440,0.09,'square',0.18); }
+  function boom(){ try{ const a=ac(),t=a.currentTime; const o=a.createOscillator(),g=a.createGain();
+    o.type='sawtooth'; o.frequency.setValueAtTime(120,t); o.frequency.exponentialRampToValueAtTime(28,t+1.1);
+    o.connect(g); g.connect(a.destination); g.gain.setValueAtTime(0.32,t); g.gain.exponentialRampToValueAtTime(0.0001,t+1.2); o.start(t); o.stop(t+1.2);
+    const buf=a.createBuffer(1,a.sampleRate*0.7,a.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
+    const ns=a.createBufferSource(); ns.buffer=buf; const ng=a.createGain(); ng.gain.value=0.3; ns.connect(ng); ng.connect(a.destination); ns.start(t);
+  }catch(e){} }
+  let sirenNodes=[];
+  function sirenStart(){ try{ const a=ac(); const o=a.createOscillator(), g=a.createGain();
+    o.type='sawtooth'; o.connect(g); g.connect(a.destination); g.gain.value=0.16; const t0=a.currentTime;
+    for(let i=0;i<16;i++){ o.frequency.setValueAtTime(720,t0+i*0.5); o.frequency.linearRampToValueAtTime(380,t0+i*0.5+0.25);
+      o.frequency.linearRampToValueAtTime(720,t0+i*0.5+0.5); } o.start(); sirenNodes=[o,g]; }catch(e){} }
+  function sirenStop(){ try{ if(sirenNodes[1]){ const a=ac(); sirenNodes[1].gain.exponentialRampToValueAtTime(0.0001,a.currentTime+0.2);} if(sirenNodes[0]) sirenNodes[0].stop(ac().currentTime+0.25); sirenNodes=[]; }catch(e){} }
+
+  // ---- SUARA (utamakan Yasmin) ----
+  let voices=[], chosenVoice=null;
+  const voiceSelect=document.getElementById('voice-select'), voiceNote=document.getElementById('voice-note');
+  const femaleHints=['female','perempuan','wanita','zira','hazel','susan','siti','yan','samantha','karen','tessa','fiona','aria','jenny','google'];
+  function scoreVoice(v){
+    let s=0; const n=v.name.toLowerCase();
+    if(n.includes('yasmin')) s+=300;               // UTAMAKAN YASMIN
+    if(/ms|malay/i.test(v.lang)) s+=100;
+    if(/google/i.test(n)) s+=40;
+    if(/natural|neural|online/i.test(n)) s+=30;
+    if(femaleHints.some(h=>n.includes(h))) s+=20;
+    if(/^en-(gb|au)/i.test(v.lang)) s+=8;
+    if(/^en/i.test(v.lang)) s+=5;
+    return s;
+  }
+  function loadVoices(){
+    voices=window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    if(!voices.length || !voiceSelect) return;
+    const sorted=[...voices].sort((a,b)=>scoreVoice(b)-scoreVoice(a));
+    voiceSelect.innerHTML='';
+    sorted.forEach((v)=>{ const idx=voices.indexOf(v); const opt=document.createElement('option');
+      opt.value=idx; opt.textContent=v.name+' ('+v.lang+')'; voiceSelect.appendChild(opt); });
+    if(!chosenVoice){ chosenVoice=sorted[0]; voiceSelect.value=voices.indexOf(sorted[0]); }
+    const hasYasmin=voices.some(v=>v.name.toLowerCase().includes('yasmin'));
+    voiceNote.textContent=hasYasmin ? 'Suara Yasmin dikesan & dipilih.' : 'Yasmin tiada dlm sistem — guna suara terbaik yg ada.';
+    voiceNote.style.color=hasYasmin ? '#3fae9f' : '#ffd24a';
+  }
+  loadVoices();
+  if(window.speechSynthesis){ window.speechSynthesis.onvoiceschanged=loadVoices; }
+  if(voiceSelect){ voiceSelect.addEventListener('change', ()=>{ chosenVoice=voices[parseInt(voiceSelect.value)]||null; previewVoice(); }); }
+  function phoneticName(v){
+    const ok = v && (/ms|malay/i.test(v.lang) || v.name.toLowerCase().includes('yasmin'));
+    if(ok) return 'Selamat datang, Encik Abdul Manaf bin Mamat.';
+    return 'Suh-lah-mat dah-tang. Un-cheek Ab-dool Mah-naf bin Mah-mat.';
+  }
+  function makeUtterance(v){
+    const u=new SpeechSynthesisUtterance(phoneticName(v));
+    if(v){ u.voice=v; u.lang=v.lang; } else { u.lang='ms-MY'; }
+    u.rate=0.88; u.pitch=1.12; u.volume=1; return u;
+  }
+  function previewVoice(){ try{ if(!window.speechSynthesis) return; window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(makeUtterance(chosenVoice)); }catch(e){} }
+  function speakWelcome(){ try{ if(!window.speechSynthesis) return; window.speechSynthesis.cancel();
+    setTimeout(()=>window.speechSynthesis.speak(makeUtterance(chosenVoice)), 400); }catch(e){} }
+
+  const panelCam=document.getElementById('panel-cam'), panelCtrl=document.getElementById('panel-ctrl');
+  const scWelcome=document.getElementById('screen-welcome');
+  const mesh=document.getElementById('mesh'), meshLines=document.getElementById('mesh-lines'), meshDots=document.getElementById('mesh-dots');
+  const line=document.getElementById('scanline'), bracket=document.getElementById('bracket'), zone=document.getElementById('face-zone');
+  const btn=document.getElementById('scan-btn'), bLabel=document.getElementById('btn-label'), bIcon=document.getElementById('btn-icon');
+  const rStatus=document.getElementById('r-status'), rMatch=document.getElementById('r-match'), rSubj=document.getElementById('r-subj');
+  const attempt=document.getElementById('attempt'), flash=document.getElementById('alarm-flash');
+  const deniedX=document.getElementById('denied-x'), lockIcon=document.getElementById('lock-icon');
+  const dBar=document.getElementById('destruct-bar'), cdNum=document.getElementById('cd-num'), cross=document.getElementById('cross');
+  const avatar=document.getElementById('avatar'), welcomeText=document.getElementById('welcome-text'), prog=document.getElementById('prog');
+  const logoutBtn=document.getElementById('logout-btn'), wTime=document.getElementById('w-time');
+  let busy=false, attemptNum=0, matchTimer, flashTimer, cdTimer, locked=false;
+  const PROG_LEN=603, SCAN_END=370;
+
+  function meshColor(c){ meshLines.setAttribute('stroke',c); meshDots.setAttribute('fill',c); }
+
+  function resetLoginScreen(){
+    busy=false; attemptNum=0; locked=false; attempt.textContent='CUBAAN 0/2';
+    dBar.style.opacity='0'; dBar.style.height='0'; dBar.style.marginBottom='0';
+    mesh.style.opacity='0'; line.style.transition='none'; line.style.top='0'; zone.style.boxShadow='none';
+    deniedX.style.opacity='0'; lockIcon.style.opacity='0'; flash.style.opacity='0';
+    gridColor='rgba(29,233,182,0.10)'; cross.setAttribute('stroke','#1de9b6'); bracket.setAttribute('stroke','#1de9b6');
+    rStatus.textContent='SEDIA'; rStatus.style.color='#5fffd8'; rMatch.innerHTML='&mdash; &mdash;'; rSubj.textContent='TIADA'; rSubj.style.color='#5fffd8';
+    bIcon.className='ti ti-scan'; bIcon.style.animation=''; bLabel.textContent='MULA IMBASAN';
+    btn.style.color='#1de9b6'; btn.style.borderColor='#1de9b6'; btn.style.background='transparent'; btn.disabled=false;
+  }
+
+  function runScan(willSucceed){
+    drone(5);
+    bIcon.className='ti ti-loader-2'; bIcon.style.animation='spin 0.8s linear infinite'; bLabel.textContent='MENGIMBAS';
+    bracket.setAttribute('stroke','#5fffd8'); meshColor('#5fffd8');
+    rStatus.textContent='MENCARI'; rStatus.style.color='#ffd24a'; rSubj.textContent='TIADA'; rSubj.style.color='#5fffd8'; deniedX.style.opacity='0';
+    line.style.opacity='1'; line.style.transition='top 1.6s linear'; requestAnimationFrame(()=>line.style.top='calc(100% - 3px)');
+    let n=0; const sc=setInterval(()=>{ sweep(280,1000,0.13,0.06); n++; if(n>=9) clearInterval(sc); }, 170);
+    const cap=willSucceed?99:62; let m=0;
+    matchTimer=setInterval(()=>{ m=Math.min(cap,m+Math.floor(Math.random()*8+4)); rMatch.textContent=m+'%'; }, 140);
+    setTimeout(()=>{ mesh.style.transition='opacity 0.5s'; mesh.style.opacity='1'; rStatus.textContent='MEMETAKAN'; rStatus.style.color='#5fffd8'; beep(900,0.08,'square',0.09); }, 900);
+    setTimeout(()=>{ line.style.opacity='0'; rStatus.textContent='MENGESAHKAN'; beep(680,0.1,'sine',0.1); }, 1800);
+    setTimeout(()=>{ clearInterval(matchTimer); willSucceed?doSuccess():doFail(); }, 2600);
+  }
+
+  function doFail(){
+    rMatch.textContent='62%';
+    meshColor('#ff3b3b'); bracket.setAttribute('stroke','#ff3b3b'); gridColor='rgba(255,43,43,0.16)'; cross.setAttribute('stroke','#ff3b3b');
+    deniedX.style.transition='opacity 0.15s'; deniedX.style.opacity='1';
+    zone.style.boxShadow='0 0 0 3px #ff3b3b, 0 0 50px 8px rgba(255,59,59,0.6)';
+    rStatus.textContent='DITOLAK'; rStatus.style.color='#ff5b5b'; rSubj.textContent='TIDAK DIKENALI'; rSubj.style.color='#ff5b5b';
+    bIcon.style.animation=''; bIcon.className='ti ti-alert-triangle'; bLabel.textContent='AKSES DITOLAK';
+    btn.style.color='#ff5b5b'; btn.style.borderColor='#ff5b5b'; btn.style.background='rgba(255,59,59,0.1)';
+    sirenStart();
+    let on=true; flashTimer=setInterval(()=>{ flash.style.opacity=on?'0.45':'0'; on=!on; }, 200);
+    setTimeout(()=>{ deniedX.style.opacity='0'; armDestruct(); }, 1400);
+  }
+
+  function armDestruct(){
+    dBar.style.height='auto'; dBar.style.marginBottom='24px'; dBar.style.opacity='1';
+    rStatus.textContent='PEMUSNAHAN'; rStatus.style.color='#ff5b5b';
+    bIcon.className='ti ti-scan'; bLabel.textContent='IMBAS SEMULA SEGERA';
+    btn.style.color='#ffd24a'; btn.style.borderColor='#ffd24a'; btn.style.background='rgba(255,210,74,0.08)';
+    busy=false;
+    let t=5; cdNum.textContent=t; tickBeep();
+    cdTimer=setInterval(()=>{ t--; cdNum.textContent=t; if(t>0){ tickBeep(); } else { clearInterval(cdTimer); detonate(); } }, 1000);
+  }
+
+  function detonate(){
+    clearInterval(flashTimer); sirenStop(); locked=true; busy=true; boom();
+    flash.style.transition='opacity 0.1s'; flash.style.opacity='0.9';
+    setTimeout(()=>{ flash.style.transition='opacity 1.2s'; flash.style.opacity='0'; }, 120);
+    dBar.style.opacity='0'; dBar.style.height='0'; dBar.style.marginBottom='0';
+    lockIcon.style.transition='opacity 0.3s'; lockIcon.style.opacity='1'; mesh.style.opacity='0';
+    zone.style.boxShadow='0 0 0 3px #ff3b3b, 0 0 70px 12px rgba(255,59,59,0.7)';
+    rStatus.textContent='DIKUNCI'; rStatus.style.color='#ff5b5b'; rMatch.textContent='—'; rSubj.textContent='SISTEM TERKUNCI'; rSubj.style.color='#ff5b5b';
+    bIcon.className='ti ti-lock'; bLabel.textContent='SISTEM DIKUNCI';
+    btn.style.color='#ff5b5b'; btn.style.borderColor='#ff5b5b'; btn.style.background='rgba(255,59,59,0.12)'; btn.disabled=true;
+    setTimeout(()=>{ btn.disabled=false; btn.style.color='#1de9b6'; btn.style.borderColor='#1de9b6'; btn.style.background='transparent';
+      bIcon.className='ti ti-refresh'; bLabel.textContent='SET SEMULA SISTEM'; }, 2600);
+  }
+
+  function doSuccess(){
+    if(cdTimer) clearInterval(cdTimer); if(flashTimer) clearInterval(flashTimer); sirenStop();
+    dBar.style.opacity='0'; dBar.style.height='0'; dBar.style.marginBottom='0'; flash.style.opacity='0';
+    gridColor='rgba(29,233,182,0.10)'; cross.setAttribute('stroke','#1de9b6');
+    rMatch.textContent='99%';
+    zone.style.transition='box-shadow 0.3s'; zone.style.boxShadow='0 0 0 3px #5fffd8, 0 0 50px 8px rgba(95,255,216,0.6)';
+    bracket.setAttribute('stroke','#5fffd8');
+    rStatus.textContent='DISAHKAN'; rStatus.style.color='#5fffd8'; rSubj.textContent='A. MANAF · G12345'; rSubj.style.color='#5fffd8';
+    bIcon.style.animation=''; bIcon.className='ti ti-shield-check'; bLabel.textContent='AKSES DIBENARKAN';
+    btn.style.color='#5fffd8'; btn.style.borderColor='#5fffd8'; btn.style.background='rgba(95,255,216,0.08)';
+    beep(680,0.1,'sine',0.12);
+    setTimeout(showWelcome, 1100);
+  }
+
+  function showWelcome(){
+    panelCam.style.transition='opacity 0.5s'; panelCtrl.style.transition='opacity 0.5s';
+    panelCam.style.opacity='0'; panelCtrl.style.opacity='0';
+    setTimeout(()=>{
+      panelCam.style.display='none'; panelCtrl.style.display='none';
+      scWelcome.style.display='flex';
+      if(camStream){ avatarIcon.style.display='none'; camVideo2.style.display='block'; }
+      const d=new Date(); const hari=['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];
+      wTime.textContent=hari[d.getDay()]+' · '+d.toTimeString().slice(0,8);
+      setTimeout(()=>{ avatar.style.opacity='1'; avatar.style.transform='scale(1)';
+        prog.style.transition='stroke-dashoffset 1.1s ease-out'; prog.style.strokeDashoffset='0'; }, 100);
+      setTimeout(()=>{ welcomeText.style.opacity='1'; welcomeText.style.transform='translateY(0)';
+        chord(); speakWelcome();
+        confetti({ particleCount:220, spread:110, startVelocity:50, origin:{ x:0.5, y:0.45 },
+          colors:['#5fffd8','#1de9b6','#378ADD','#ffd24a'] });
+      }, 500);
+      setTimeout(()=>{ logoutBtn.style.opacity='1'; }, 1000);
+    }, 500);
+  }
+
+  logoutBtn.addEventListener('click', ()=>{
+    beep(440,0.1,'sine',0.1);
+    if(window.speechSynthesis) window.speechSynthesis.cancel();
+    avatar.style.opacity='0'; avatar.style.transform='scale(0.8)'; welcomeText.style.opacity='0'; logoutBtn.style.opacity='0';
+    prog.style.transition='none'; prog.style.strokeDashoffset='603';
+    setTimeout(()=>{ scWelcome.style.display='none';
+      panelCam.style.display='block'; panelCtrl.style.display='block'; panelCam.style.opacity='1'; panelCtrl.style.opacity='1';
+      resetLoginScreen(); }, 500);
+  });
+
+  btn.addEventListener('click', ()=>{
+    if(actx && actx.state==='suspended') actx.resume();
+    if(locked){ if(!btn.disabled) resetLoginScreen(); return; }
+    if(busy) return; busy=true;
+    attemptNum++; attempt.textContent='CUBAAN '+attemptNum+'/2';
+    runScan(attemptNum>=2);
+  });
+
+  const voiceTest=document.getElementById('voice-test');
+  if(voiceTest){ voiceTest.addEventListener('click', ()=>{ previewVoice(); }); }
+})();
+</script>
+</body>
+</html>
