@@ -47,6 +47,11 @@
   <h2 class="sr-only">Sistem pengesahan wajah skrin penuh dengan kamera sebenar: cubaan pertama gagal dengan penggera dan pemasa pemusnahan 5 saat, cubaan kedua berjaya lalu papar sambutan dengan suara. Mockup offline tanpa pengecaman sebenar.</h2>
   <canvas id="grid-bg"></canvas>
   <div id="alarm-flash"></div>
+  <div id="intruder-banner" style="position:absolute; top:0; left:0; right:0; z-index:60; display:none; align-items:center; justify-content:center; gap:16px; padding:14px; background:rgba(255,20,20,0.92); box-shadow:0 0 40px 8px rgba(255,40,40,0.7);">
+    <i class="ti ti-alert-triangle-filled" style="font-size:26px; color:#fff;" aria-hidden="true"></i>
+    <span style="color:#fff; font-size:20px; font-weight:600; letter-spacing:6px;">PENCEROBOH DIKESAN · INTRUDER ALERT</span>
+    <i class="ti ti-alert-triangle-filled" style="font-size:26px; color:#fff;" aria-hidden="true"></i>
+  </div>
 
   <!-- BAR ATAS -->
   <div id="topbar">
@@ -103,6 +108,9 @@
             </g>
           </svg>
           <div id="scanline" style="position:absolute; left:0; right:0; height:3px; background:#5fffd8; box-shadow:0 0 24px 6px rgba(95,255,216,0.9); top:0; opacity:0;"></div>
+          <div id="scanline2" style="position:absolute; left:0; right:0; height:1px; background:rgba(95,255,216,0.5); top:0; opacity:0;"></div>
+          <div id="datastream" style="position:absolute; top:8px; left:10px; font-size:9px; line-height:1.5; color:rgba(95,255,216,0.85); letter-spacing:0.5px; opacity:0; pointer-events:none; text-shadow:0 0 4px rgba(95,255,216,0.6); white-space:pre;"></div>
+          <div id="hud-corner" style="position:absolute; bottom:8px; right:10px; font-size:9px; line-height:1.5; color:rgba(95,255,216,0.7); letter-spacing:0.5px; opacity:0; text-align:right; pointer-events:none;"></div>
           <div id="denied-x" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; opacity:0;">
             <i class="ti ti-ban" style="font-size:180px; color:#ff3b3b;" aria-hidden="true"></i>
           </div>
@@ -272,11 +280,14 @@
     const ns=a.createBufferSource(); ns.buffer=buf; const ng=a.createGain(); ng.gain.value=0.3; ns.connect(ng); ng.connect(a.destination); ns.start(t);
   }catch(e){} }
   let sirenNodes=[];
-  function sirenStart(){ try{ const a=ac(); const o=a.createOscillator(), g=a.createGain();
-    o.type='sawtooth'; o.connect(g); g.connect(a.destination); g.gain.value=0.16; const t0=a.currentTime;
-    for(let i=0;i<16;i++){ o.frequency.setValueAtTime(720,t0+i*0.5); o.frequency.linearRampToValueAtTime(380,t0+i*0.5+0.25);
-      o.frequency.linearRampToValueAtTime(720,t0+i*0.5+0.5); } o.start(); sirenNodes=[o,g]; }catch(e){} }
-  function sirenStop(){ try{ if(sirenNodes[1]){ const a=ac(); sirenNodes[1].gain.exponentialRampToValueAtTime(0.0001,a.currentTime+0.2);} if(sirenNodes[0]) sirenNodes[0].stop(ac().currentTime+0.25); sirenNodes=[]; }catch(e){} }
+  function sirenStart(){ try{ const a=ac(); const o=a.createOscillator(), o2=a.createOscillator(), g=a.createGain();
+    o.type='sawtooth'; o2.type='square'; o.connect(g); o2.connect(g); g.connect(a.destination); g.gain.value=0.18; const t0=a.currentTime;
+    for(let i=0;i<20;i++){ o.frequency.setValueAtTime(780,t0+i*0.45); o.frequency.linearRampToValueAtTime(360,t0+i*0.45+0.22);
+      o.frequency.linearRampToValueAtTime(780,t0+i*0.45+0.45);
+      o2.frequency.setValueAtTime(390,t0+i*0.45); o2.frequency.linearRampToValueAtTime(180,t0+i*0.45+0.22);
+      o2.frequency.linearRampToValueAtTime(390,t0+i*0.45+0.45); } o.start(); o2.start(); sirenNodes=[o,g,o2]; }catch(e){} }
+  function sirenStop(){ try{ if(sirenNodes[1]){ const a=ac(); sirenNodes[1].gain.exponentialRampToValueAtTime(0.0001,a.currentTime+0.2);}
+    if(sirenNodes[0]) sirenNodes[0].stop(ac().currentTime+0.25); if(sirenNodes[2]) sirenNodes[2].stop(ac().currentTime+0.25); sirenNodes=[]; }catch(e){} }
 
   // ---- SUARA (utamakan Yasmin) ----
   let voices=[], chosenVoice=null;
@@ -322,27 +333,62 @@
     window.speechSynthesis.speak(makeUtterance(chosenVoice)); }catch(e){} }
   function speakWelcome(){ try{ if(!window.speechSynthesis) return; window.speechSynthesis.cancel();
     setTimeout(()=>window.speechSynthesis.speak(makeUtterance(chosenVoice)), 400); }catch(e){} }
+  function speakAlert(){
+    try{
+      if(!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance('Amaran! Akses ditolak. Access denied. Intruder alert!');
+      if(chosenVoice){ u.voice=chosenVoice; u.lang=chosenVoice.lang; } else { u.lang='ms-MY'; }
+      u.rate=1.0; u.pitch=0.85; u.volume=1;
+      window.speechSynthesis.speak(u);
+    }catch(e){}
+  }
 
   const panelCam=document.getElementById('panel-cam'), panelCtrl=document.getElementById('panel-ctrl');
   const scWelcome=document.getElementById('screen-welcome');
   const mesh=document.getElementById('mesh'), meshLines=document.getElementById('mesh-lines'), meshDots=document.getElementById('mesh-dots');
   const line=document.getElementById('scanline'), bracket=document.getElementById('bracket'), zone=document.getElementById('face-zone');
+  const line2=document.getElementById('scanline2'), datastream=document.getElementById('datastream'), hudCorner=document.getElementById('hud-corner');
   const btn=document.getElementById('scan-btn'), bLabel=document.getElementById('btn-label'), bIcon=document.getElementById('btn-icon');
   const rStatus=document.getElementById('r-status'), rMatch=document.getElementById('r-match'), rSubj=document.getElementById('r-subj');
   const attempt=document.getElementById('attempt'), flash=document.getElementById('alarm-flash');
   const deniedX=document.getElementById('denied-x'), lockIcon=document.getElementById('lock-icon');
+  const intruderBanner=document.getElementById('intruder-banner');
   const dBar=document.getElementById('destruct-bar'), cdNum=document.getElementById('cd-num'), cross=document.getElementById('cross');
   const avatar=document.getElementById('portrait-wrap'), welcomeText=document.getElementById('welcome-text');
   const welcomeBadge=document.getElementById('welcome-badge');
   const logoutBtn=document.getElementById('logout-btn'), wTime=document.getElementById('w-time');
-  let busy=false, attemptNum=0, matchTimer, flashTimer, cdTimer, locked=false;
+  let busy=false, attemptNum=0, matchTimer, flashTimer, cdTimer, bannerTimer, locked=false;
 
   function meshColor(c){ meshLines.setAttribute('stroke',c); meshDots.setAttribute('fill',c); }
 
+  // ---- Kesan teks data berjalan (ala MI) ----
+  let dataTimer=null;
+  const HEXCHARS='0123456789ABCDEF';
+  function randHex(n){ let s=''; for(let i=0;i<n;i++) s+=HEXCHARS[Math.floor(Math.random()*16)]; return s; }
+  const SCAN_LINES=['SCAN','BIO','FACE','NODE','HASH','AUTH','KEY '];
+  function startDataStream(){
+    datastream.style.opacity='1'; hudCorner.style.opacity='1';
+    dataTimer=setInterval(()=>{
+      let rows=[];
+      for(let i=0;i<7;i++){ rows.push(SCAN_LINES[i]+' '+randHex(8)+':'+randHex(4)); }
+      datastream.textContent=rows.join('\n');
+      hudCorner.textContent='FPS '+(28+Math.floor(Math.random()*6))+'\nLAT '+(2+Math.floor(Math.random()*9))+'ms\nVEC '+randHex(6);
+    }, 90);
+  }
+  function stopDataStream(){ if(dataTimer) clearInterval(dataTimer); dataTimer=null;
+    datastream.style.opacity='0'; hudCorner.style.opacity='0'; }
+  // Denyutan suspens (heartbeat) semasa mengesahkan
+  function suspensePulse(times){
+    let i=0; const iv=setInterval(()=>{ beep(70,0.14,'sine',0.22); setTimeout(()=>beep(60,0.12,'sine',0.16),120); i++; if(i>=times) clearInterval(iv); }, 480); return iv;
+  }
+
   function resetLoginScreen(){
     busy=false; attemptNum=0; locked=false; attempt.textContent='CUBAAN 0/2';
+    if(bannerTimer) clearInterval(bannerTimer); intruderBanner.style.display='none'; intruderBanner.style.opacity='1';
     dBar.style.opacity='0'; dBar.style.height='0'; dBar.style.marginBottom='0';
     mesh.style.opacity='0'; line.style.transition='none'; line.style.top='0'; zone.style.boxShadow='none';
+    stopDataStream(); line2.style.opacity='0'; line2.style.top='0';
     deniedX.style.opacity='0'; lockIcon.style.opacity='0'; flash.style.opacity='0';
     gridColor='rgba(29,233,182,0.10)'; cross.setAttribute('stroke','#1de9b6'); bracket.setAttribute('stroke','#1de9b6');
     rStatus.textContent='SEDIA'; rStatus.style.color='#5fffd8'; rMatch.innerHTML='&mdash; &mdash;'; rSubj.textContent='TIADA'; rSubj.style.color='#5fffd8';
@@ -351,17 +397,31 @@
   }
 
   function runScan(willSucceed){
-    drone(5);
+    drone(6);
     bIcon.className='ti ti-loader-2'; bIcon.style.animation='spin 0.8s linear infinite'; bLabel.textContent='MENGIMBAS';
     bracket.setAttribute('stroke','#5fffd8'); meshColor('#5fffd8');
     rStatus.textContent='MENCARI'; rStatus.style.color='#ffd24a'; rSubj.textContent='TIADA'; rSubj.style.color='#5fffd8'; deniedX.style.opacity='0';
-    line.style.opacity='1'; line.style.transition='top 1.6s linear'; requestAnimationFrame(()=>line.style.top='calc(100% - 3px)');
-    let n=0; const sc=setInterval(()=>{ sweep(280,1000,0.13,0.06); n++; if(n>=9) clearInterval(sc); }, 170);
+    startDataStream();
+    // Garis imbas utama (perlahan, dramatik) + garis imbas kedua (laju, bolak-balik)
+    line.style.opacity='1'; line.style.transition='top 2.0s linear'; requestAnimationFrame(()=>line.style.top='calc(100% - 3px)');
+    line2.style.opacity='1';
+    let dir=1, p=0; const sweepLine=setInterval(()=>{ p+=dir*7; if(p>=100||p<=0) dir*=-1; line2.style.top=p+'%'; }, 30);
+    // Bunyi imbasan berdenyut intens
+    let n=0; const sc=setInterval(()=>{ sweep(260,1100,0.12,0.07); beep(1200,0.03,'square',0.05); n++; if(n>=11) clearInterval(sc); }, 150);
+    // Padanan naik
     const cap=willSucceed?100:62; let m=0;
-    matchTimer=setInterval(()=>{ m=Math.min(cap,m+Math.floor(Math.random()*8+4)); rMatch.textContent=m+'%'; }, 140);
-    setTimeout(()=>{ mesh.style.transition='opacity 0.5s'; mesh.style.opacity='1'; rStatus.textContent='MEMETAKAN'; rStatus.style.color='#5fffd8'; beep(900,0.08,'square',0.09); }, 900);
-    setTimeout(()=>{ line.style.opacity='0'; rStatus.textContent='MENGESAHKAN'; beep(680,0.1,'sine',0.1); }, 1800);
-    setTimeout(()=>{ clearInterval(matchTimer); willSucceed?doSuccess():doFail(); }, 2600);
+    matchTimer=setInterval(()=>{ m=Math.min(cap,m+Math.floor(Math.random()*7+3)); rMatch.textContent=m+'%'; }, 130);
+    // Mesh muncul titik demi titik
+    setTimeout(()=>{ mesh.style.transition='opacity 0.4s'; mesh.style.opacity='1'; rStatus.textContent='MEMETAKAN'; rStatus.style.color='#5fffd8'; beep(920,0.08,'square',0.1); }, 800);
+    setTimeout(()=>{ rStatus.textContent='MENGANALISIS'; beep(740,0.08,'square',0.09); }, 1500);
+    // Fasa pengesahan dengan denyutan suspens
+    let pulseIv;
+    setTimeout(()=>{ clearInterval(sweepLine); line.style.opacity='0'; line2.style.opacity='0';
+      rStatus.textContent='MENGESAHKAN'; rStatus.style.color='#ffd24a';
+      bracket.setAttribute('stroke','#ffd24a');
+      pulseIv=suspensePulse(3); }, 2200);
+    setTimeout(()=>{ if(pulseIv) clearInterval(pulseIv); clearInterval(matchTimer); clearInterval(sc); stopDataStream();
+      willSucceed?doSuccess():doFail(); }, 3500);
   }
 
   function doFail(){
@@ -373,8 +433,13 @@
     bIcon.style.animation=''; bIcon.className='ti ti-alert-triangle'; bLabel.textContent='AKSES DITOLAK';
     btn.style.color='#ff5b5b'; btn.style.borderColor='#ff5b5b'; btn.style.background='rgba(255,59,59,0.1)';
     sirenStart();
-    let on=true; flashTimer=setInterval(()=>{ flash.style.opacity=on?'0.45':'0'; on=!on; }, 200);
-    setTimeout(()=>{ deniedX.style.opacity='0'; armDestruct(); }, 1400);
+    speakAlert();                                   // AMARAN LISAN campur 2 bahasa
+    // Kelipan skrin lebih kerap & dramatik (ala Mission Impossible)
+    let on=true; flashTimer=setInterval(()=>{ flash.style.opacity=on?'0.6':'0'; on=!on; }, 140);
+    // Banner "PENCEROBOH DIKESAN" berkelip
+    intruderBanner.style.display='flex'; let bon=true;
+    bannerTimer=setInterval(()=>{ intruderBanner.style.opacity=bon?'1':'0.15'; bon=!bon; beep(900,0.05,'square',0.08); }, 320);
+    setTimeout(()=>{ deniedX.style.opacity='0'; armDestruct(); }, 1700);
   }
 
   function armDestruct(){
@@ -388,7 +453,8 @@
   }
 
   function detonate(){
-    clearInterval(flashTimer); sirenStop(); locked=true; busy=true; boom();
+    clearInterval(flashTimer); if(bannerTimer) clearInterval(bannerTimer); sirenStop(); locked=true; busy=true; boom();
+    intruderBanner.style.display='none';
     flash.style.transition='opacity 0.1s'; flash.style.opacity='0.9';
     setTimeout(()=>{ flash.style.transition='opacity 1.2s'; flash.style.opacity='0'; }, 120);
     dBar.style.opacity='0'; dBar.style.height='0'; dBar.style.marginBottom='0';
@@ -402,7 +468,9 @@
   }
 
   function doSuccess(){
-    if(cdTimer) clearInterval(cdTimer); if(flashTimer) clearInterval(flashTimer); sirenStop();
+    if(cdTimer) clearInterval(cdTimer); if(flashTimer) clearInterval(flashTimer); if(bannerTimer) clearInterval(bannerTimer); sirenStop();
+    stopDataStream(); line2.style.opacity='0';
+    intruderBanner.style.display='none';
     dBar.style.opacity='0'; dBar.style.height='0'; dBar.style.marginBottom='0'; flash.style.opacity='0';
     gridColor='rgba(29,233,182,0.10)'; cross.setAttribute('stroke','#1de9b6');
     rMatch.textContent='100%';
