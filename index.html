@@ -448,7 +448,7 @@
     bIcon.className='ti ti-scan'; bLabel.textContent='IMBAS SEMULA SEGERA';
     btn.style.color='#ffd24a'; btn.style.borderColor='#ffd24a'; btn.style.background='rgba(255,210,74,0.08)';
     busy=false;
-    let t=5; cdNum.textContent=t; tickBeep();
+    let t=10; cdNum.textContent=t; tickBeep();
     cdTimer=setInterval(()=>{ t--; cdNum.textContent=t; if(t>0){ tickBeep(); } else { clearInterval(cdTimer); detonate(); } }, 1000);
   }
 
